@@ -55,7 +55,6 @@ class Python3Recipe(TargetPythonRecipe):
     '''
 
     version = '3.11.13'
-    _p_version = Version(version)
     url = 'https://github.com/python/cpython/archive/refs/tags/v{version}.tar.gz'
     name = 'python3'
 
@@ -63,27 +62,6 @@ class Python3Recipe(TargetPythonRecipe):
         'patches/pyconfig_detection.patch',
         'patches/reproducible-buildinfo.diff',
     ]
-
-    if _p_version.major == 3 and _p_version.minor == 7:
-        patches += [
-            'patches/py3.7.1_fix-ctypes-util-find-library.patch',
-            'patches/py3.7.1_fix-zlib-version.patch',
-        ]
-
-    if 8 <= _p_version.minor <= 10:
-        patches.append('patches/py3.8.1.patch')
-
-    if _p_version.minor >= 11:
-        patches.append('patches/cpython-311-ctypes-find-library.patch')
-
-    if _p_version.minor >= 14:
-        patches.append('patches/3.14_armv7l_fix.patch')
-
-    if shutil.which('lld') is not None:
-        if _p_version.minor == 7:
-            patches.append("patches/py3.7.1_fix_cortex_a8.patch")
-        elif _p_version.minor >= 8:
-            patches.append("patches/py3.8.1_fix_cortex_a8.patch")
 
     depends = ['hostpython3', 'sqlite3', 'openssl', 'libffi']
     # those optional depends allow us to build python compression modules:
@@ -114,11 +92,6 @@ class Python3Recipe(TargetPythonRecipe):
         'ac_cv_little_endian_double=yes',
         'ac_cv_header_bzlib_h=no',
     ]
-
-    if _p_version.minor >= 11:
-        configure_args.extend([
-            '--with-build-python={python_host_bin}',
-        ])
 
     '''The configure arguments needed to build the python recipe. Those are
     used in method :meth:`build_arch` (if not overwritten like python3's
@@ -206,6 +179,34 @@ class Python3Recipe(TargetPythonRecipe):
             minor=minor,
             flags=flags
         )
+
+    def apply_patches(self, arch, build_dir=None):
+
+        _p_version = Version(self.version)
+        if _p_version.major == 3 and _p_version.minor == 7:
+            self.patches += [
+                'patches/py3.7.1_fix-ctypes-util-find-library.patch',
+                'patches/py3.7.1_fix-zlib-version.patch',
+            ]
+
+        if 8 <= _p_version.minor <= 10:
+            self.patches.append('patches/py3.8.1.patch')
+
+        if _p_version.minor >= 11:
+            self.patches.append('patches/cpython-311-ctypes-find-library.patch')
+
+        if _p_version.minor >= 14:
+            self.patches.append('patches/3.14_armv7l_fix.patch')
+            self.patches.append('patches/3.14_fix_remote_debug.patch')
+
+        if shutil.which('lld') is not None:
+            if _p_version.minor == 7:
+                self.patches.append("patches/py3.7.1_fix_cortex_a8.patch")
+            elif _p_version.minor >= 8:
+                self.patches.append("patches/py3.8.1_fix_cortex_a8.patch")
+
+        self.patches = list(set(self.patches))
+        super().apply_patches(arch, build_dir)
 
     def include_root(self, arch_name):
         return join(self.get_build_dir(arch_name), 'Include')
@@ -314,8 +315,14 @@ class Python3Recipe(TargetPythonRecipe):
         env['ZLIB_VERSION'] = line.replace('#define ZLIB_VERSION ', '')
         add_flags(' -I' + zlib_includes, ' -L' + zlib_lib_path, ' -lz')
 
-        if self._p_version.minor >= 13 and self.disable_gil:
+        _p_version = Version(self.version)
+        if _p_version.minor >= 11:
+            self.configure_args.append('--with-build-python={python_host_bin}')
+
+        if _p_version.minor >= 13 and self.disable_gil:
             self.configure_args.append("--disable-gil")
+
+        self.configure_args = list(set(self.configure_args))
 
         return env
 
@@ -402,7 +409,7 @@ class Python3Recipe(TargetPythonRecipe):
             'build',
             'lib.{}{}-{}-{}'.format(
                 # android is now supported platform
-                "android" if self._p_version.minor >= 13 else "linux",
+                "android" if Version(self.version).minor >= 13 else "linux",
                 '2' if self.version[0] == '2' else '',
                 arch.command_prefix.split('-')[0],
                 self.major_minor_version_string
