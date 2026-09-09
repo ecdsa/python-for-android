@@ -404,18 +404,18 @@ class Python3Recipe(TargetPythonRecipe):
         copying all the modules and standard library to the right
         place.
         """
-        # Todo: find a better way to find the build libs folder
-        modules_build_dir = join(
-            self.get_build_dir(arch.arch),
-            'android-build',
-            'build',
-            'lib.{}{}-{}-{}'.format(
-                # android is now supported platform
-                "android" if Version(self.version).minor >= 13 else "linux",
-                '2' if self.version[0] == '2' else '',
-                arch.command_prefix.split('-')[0],
-                self.major_minor_version_string
-                ))
+        # the name of this dir depends on the python version and on how that
+        # version spells the target platform: cpython 3.13+ produces e.g.
+        # "lib.android-26-arm64_v8a-3.14", older ones "lib.linux-aarch64-3.11".
+        # rather than reconstructing it, look it up.
+        modules_build_dirs = glob.glob(join(
+            self.get_build_dir(arch.arch), 'android-build', 'build', 'lib.*'))
+        if len(modules_build_dirs) != 1:
+            # e.g. a build dir left over from a different python version
+            raise BuildInterruptingException(
+                'expected exactly one "lib.*" dir in the python3 build dir, '
+                'found: {}'.format(modules_build_dirs))
+        modules_build_dir = modules_build_dirs[0]
 
         # Compile to *.pyc the python modules
         self.compile_python_files(modules_build_dir)
