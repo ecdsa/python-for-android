@@ -152,8 +152,10 @@ class TestPython3Recipe(RecipeCtx, unittest.TestCase):
     @mock.patch("pythonforandroid.recipes.python3.sh.cp")
     @mock.patch("pythonforandroid.recipes.python3.sh.zip")
     @mock.patch("pythonforandroid.recipes.python3.subprocess.call")
+    @mock.patch("pythonforandroid.recipes.python3.glob.glob")
     def test_create_python_bundle(
             self,
+            mock_glob,
             mock_subprocess,
             mock_sh_zip,
             mock_sh_cp,
@@ -171,19 +173,19 @@ class TestPython3Recipe(RecipeCtx, unittest.TestCase):
             ["/fake_dir/Lib/ctypes", [], ["util.pyc", "util.py"]],
         ]
         mock_walk.return_value = simulated_walk_result
-        self.recipe.create_python_bundle(fake_compile_dir, self.arch)
 
         recipe_build_dir = self.recipe.get_build_dir(self.arch.arch)
+        # the recipe globs for this dir, as its name varies with the python
+        # version and with how that version spells the target platform
         modules_build_dir = join(
-            recipe_build_dir,
-            'android-build',
-            'build',
-            'lib.{}{}-{}-{}'.format(
-                'android' if self.recipe.version[2] >= "3" else 'linux',
-                '2' if self.recipe.version[0] == '2' else '',
-                self.arch.command_prefix.split('-')[0],
-                self.recipe.major_minor_version_string
-            ))
+            recipe_build_dir, 'android-build', 'build',
+            'lib.android-26-arm64_v8a-3.14',
+        )
+        mock_glob.side_effect = lambda pattern: (
+            [modules_build_dir] if pattern.endswith('lib.*') else []
+        )
+        self.recipe.create_python_bundle(fake_compile_dir, self.arch)
+
         expected_sp_paths = [
             modules_build_dir,
             join(recipe_build_dir, 'Lib'),
