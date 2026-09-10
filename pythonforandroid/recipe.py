@@ -1028,9 +1028,9 @@ class PythonRecipe(Recipe):
 
             if isfile("setup.py"):
                 if self.install_in_targetpython:
-                    shprint(hostpython, 'setup.py', 'install', '-O2',
-                            '--root={}'.format(self.ctx.get_python_install_dir(arch.arch)),
-                            '--install-lib=.',
+                    shprint(hostpython, '-m', 'pip', 'install', '.',
+                            '--no-build-isolation', '--no-deps', '--no-compile',
+                            '--target', self.ctx.get_python_install_dir(arch.arch),
                             _env=hpenv, *self.setup_extra_args)
 
                 # If asked, also install in the hostpython build dir
@@ -1054,8 +1054,8 @@ class PythonRecipe(Recipe):
     def install_hostpython_package(self, arch):
         env = self.get_hostrecipe_env(arch)
         real_hostpython = sh.Command(self.real_hostpython_location)
-        shprint(real_hostpython, 'setup.py', 'install', '-O2',
-                '--install-lib=Lib/site-packages',
+        shprint(real_hostpython, '-m', 'pip', 'install', '.',
+                '--no-build-isolation', '--no-deps', '--no-compile',
                 '--root={}'.format(self._host_recipe.site_root),
                 _env=env, *self.setup_extra_args)
 
